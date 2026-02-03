@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<title>WordMaster – So‘z yodlash</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Montserrat',sans-serif;margin:0;transition:background 1s,color 1s;overflow-x:hidden;}
+  body.light{background:#f2f2f2;color:#0f172a}
+  body.dark{background:linear-gradient(135deg,#0f172a,#0f0f3a);color:#e5e7eb}
+  .wrap{max-width:900px;margin:auto;padding:20px;animation:fadeIn 1s}
+  .tabs button{margin-right:8px;padding:10px 14px;border-radius:12px;border:0;cursor:pointer;transition:0.3s;box-shadow:0 4px 6px rgba(0,0,0,0.2);}
+  .tabs button:hover{transform:scale(1.05)}
+  .card{background:rgba(2,6,23,0.9);border-radius:16px;padding:20px;margin-top:16px;transition:0.5s;box-shadow:0 8px 20px rgba(0,0,0,0.5);}
+  .card.light{background:#fff;color:#0f172a;}
+  input,select{padding:10px;border-radius:12px;border:1px solid #334155;background:#020617;color:#e5e7eb;transition:0.3s}
+  input.light{background:#f9f9f9;color:#0f172a;border:1px solid #ccc;}
+  button.primary{background:#22c55e;color:#032e14}
+  button.warn{background:#f59e0b}
+  button.danger{background:#ef4444;color:white}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .center{text-align:center}
+  .big{font-size:36px;transition:0.3s;animation:fadeIn 0.5s;}
+  .muted{color:#94a3b8}
+  .hide{display:none}
+  .fade{animation:fadeIn 0.5s}
+  .flash-correct{animation:flashGreen 0.3s;}
+  .flash-wrong{animation:flashRed 0.3s;}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes flashGreen{0%{background:#22c55e;color:#032e14}100%{background:inherit;color:inherit}}
+  @keyframes flashRed{0%{background:#ef4444;color:white}100%{background:inherit;color:inherit}}
+  .progress{height:14px;background:#334155;border-radius:12px;overflow:hidden;margin-top:10px}
+  .bar{height:100%;background:linear-gradient(90deg,#22c55e,#06b6d4);width:0%;transition:0.5s}
+</style>
+</head>
+<body class="dark">
+<div class="wrap">
+  <h1>WordMaster</h1>
+  <p class="muted">Hamma til uchun so‘z yodlash • Offline • Tez • Ball va o‘yinlar</p>
+  <div class="row tabs">
+    <button onclick="show('add')">➕ Qo‘shish</button>
+    <button onclick="show('study')">🧠 Yodlash</button>
+    <button onclick="show('quiz')">🎮 Quiz</button>
+    <button onclick="show('time')">⏱ Time Challenge</button>
+    <button onclick="show('streak')">🔥 Streak Game</button>
+    <button onclick="toggleTheme()">🌗 Light/Dark</button>
+  </div>
+
+  <!-- ADD -->
+  <div id="add" class="card fade">
+    <h3>So‘z qo‘shish</h3>
+    <div class="row">
+      <input id="lang" class="fade" placeholder="Til (masalan: Korean)">
+      <input id="word" class="fade" placeholder="So‘z">
+      <input id="mean" class="fade" placeholder="Tarjima">
+      <button class="primary" onclick="addWord()">Saqlash</button>
+      <button class="danger" onclick="clearAll()">Hammasini o‘chirish</button>
+    </div>
+    <p class="muted">Saqlanadi (LocalStorage)</p>
+  </div>
+
+  <!-- STUDY -->
+  <div id="study" class="card hide center fade">
+    <h3>Yodlash</h3>
+    <div class="big" id="sWord">—</div>
+    <p class="muted" id="sLang"></p>
+    <p id="sMean" class="hide"></p>
+    <div class="row center">
+      <button class="warn" onclick="toggleMean()">Ko‘rsat / Yashir</button>
+      <button class="primary" onclick="nextStudy()">Keyingi</button>
+    </div>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="quiz" class="card hide center fade">
+    <h3>Quiz</h3>
+    <div class="big" id="qWord">—</div>
+    <div class="row center" id="opts"></div>
+    <p class="muted">Ball: <span id="score">0</span></p>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+  </div>
+
+  <!-- TIME CHALLENGE -->
+  <div id="time" class="card hide center fade">
+    <h3>Time Challenge ⏱</h3>
+    <p>30 soniya ichida qancha so‘z to‘g‘ri javob berasan</p>
+    <div class="big" id="tWord">—</div>
+    <div class="row center" id="tOpts"></div>
+    <p class="muted">Ball: <span id="tScore">0</span></p>
+    <button class="primary" onclick="startTime()">Start</button>
+    <p class="muted" id="tTimer">30</p>
+  </div>
+
+  <!-- STREAK -->
+  <div id="streak" class="card hide center fade">
+    <h3>Streak Game 🔥</h3>
+    <p>Ketma-ket to‘g‘ri javoblar bilan ball yig‘ing</p>
+    <div class="big" id="stWord">—</div>
+    <div class="row center" id="stOpts"></div>
+    <p class="muted">Streak: <span id="streakScore">0</span></p>
+    <p class="muted">Max Streak: <span id="maxStreak">0</span></p>
+    <button class="primary" onclick="startStreak()">Start</button>
+  </div>
+
+</div>
+
+<script>
+const KEY='wm_words';
+let words=JSON.parse(localStorage.getItem(KEY)||'[]');
+let si=0, qi=0, score=0;
+
+// Elements
+const sWord=document.getElementById('sWord');
+const sLang=document.getElementById('sLang');
+const sMean=document.getElementById('sMean');
+const opts=document.getElementById('opts');
+const bar=document.getElementById('bar');
+
+// Time challenge
+const tWord=document.getElementById('tWord');
+const tOpts=document.getElementById('tOpts');
+const tScoreEl=document.getElementById('tScore');
+const tTimerEl=document.getElementById('tTimer');
+let tScore=0,tTime=30,tInterval;
+
+// Streak
+const stWord=document.getElementById('stWord');
+const stOpts=document.getElementById('stOpts');
+const stScoreEl=document.getElementById('streakScore');
+const maxStreakEl=document.getElementById('maxStreak');
+let streak=0,maxSt=0,stIdx;
+
+function show(id){
+  ['add','study','quiz','time','streak'].forEach(x=>document.getElementById(x).classList.add('hide'));
+  document.getElementById(id).classList.remove('hide');
+  if(id==='study') loadStudy();
+  if(id==='quiz') loadQuiz();
+}
+function toggleTheme(){
+  document.body.classList.toggle('dark');
+  document.body.classList.toggle('light');
+  ['add','study','quiz','time','streak'].forEach(id=>{
+    document.getElementById(id).classList.toggle('light');
+  });
+  ['lang','word','mean'].forEach(id=>document.getElementById(id).classList.toggle('light'));
+}
+
+function save(){ localStorage.setItem(KEY,JSON.stringify(words)); }
+function addWord(){
+  const lang=langEl().value.trim(),w=wordEl().value.trim(),m=meanEl().value.trim();
+  if(!lang||!w||!m) return alert('To‘ldir!');
+  words.push({lang,w,m}); save(); langEl().value=wordEl().value=meanEl().value=''; alert('Saqlanadi!');
+}
+const langEl=()=>document.getElementById('lang');
+const wordEl=()=>document.getElementById('word');
+const meanEl=()=>document.getElementById('mean');
+function clearAll(){ if(confirm('Rostdanmi?')){ words=[]; save(); score=0; updateBar(); } }
+
+// STUDY
+function loadStudy(){
+  if(!words.length) return;
+  si=Math.floor(Math.random()*words.length);
+  sWord.innerText=words[si].w;
+  sLang.innerText=words[si].lang;
+  sMean.innerText=words[si].m;
+  sMean.classList.add('hide');
+}
+function toggleMean(){ sMean.classList.toggle('hide'); }
+function nextStudy(){ loadStudy(); }
+
+// QUIZ
+function loadQuiz(){
+  if(words.length<3) return;
+  qi=Math.floor(Math.random()*words.length);
+  qWord.innerText=words[qi].w;
+  opts.innerHTML='';
+  let arr=[words[qi].m];
+  while(arr.length<4){ let r=words[Math.floor(Math.random()*words.length)].m; if(!arr.includes(r)) arr.push(r); }
+  arr.sort(()=>Math.random()-0.5);
+  arr.forEach(t=>{ let b=document.createElement('button'); b.innerText=t; b.onclick=()=>{answer(t,b)}; opts.appendChild(b); });
+  updateBar();
+}
+function answer(t,btn){ 
+  if(t===words[qi].m){score++; btn.classList.add('flash-correct');}
+  else btn.classList.add('flash-wrong');
+  document.getElementById('score').innerText=score; updateBar(); loadQuiz();
+}
+function updateBar(){ let perc=words.length? Math.min(score/words.length*100,100):0; bar.style.width=perc+'%'; }
+
+// TIME CHALLENGE
+function startTime(){
+  if(words.length<3) return alert('Kamida 3 so‘z qo‘shing!');
+  tScore=0;tTime=30;tScoreEl.innerText=tScore;tTimerEl.innerText=tTime;
+  nextTime();
+  tInterval=setInterval(()=>{ tTime--; tTimerEl.innerText=tTime; if(tTime<=0){ clearInterval(tInterval); alert('Vaqt tugadi! Ball: '+tScore); } },1000);
+}
+function nextTime(){
+  let idx=Math.floor(Math.random()*words.length);
+  tWord.innerText=words[idx].w; tOpts.innerHTML='';
+  let arr=[words[idx].m];
+  while(arr.length<4){ let r=words[Math.floor(Math.random()*words.length)].m; if(!arr.includes(r)) arr.push(r);}
+  arr.sort(()=>Math.random()-0.5);
+  arr.forEach(t=>{ let b=document.createElement('button'); b.innerText=t; b.onclick=()=>{ if(t===words[idx].m) tScore++; tScoreEl.innerText=tScore; nextTime(); }; tOpts.appendChild(b); });
+}
+
+// STREAK GAME
+function startStreak(){
+  if(words.length<3) return alert('Kamida 3 so‘z qo‘shing!');
+  streak=0; maxSt=0; stScoreEl.innerText=streak; maxStreakEl.innerText=maxSt;
+  nextStreak();
+}
+function nextStreak(){
+  stIdx=Math.floor(Math.random()*words.length); stWord.innerText=words[stIdx].w; stOpts.innerHTML='';
+  let arr=[words[stIdx].m]; while(arr.length<4){ let r=words[Math.floor(Math.random()*words.length)].m; if(!arr.includes(r)) arr.push(r);}
+  arr.sort(()=>Math.random()-0.5);
+  arr.forEach(t=>{ let b=document.createElement('button'); b.innerText=t; b.onclick=()=>{ if(t===words[stIdx].m){ streak++; if(streak>maxSt) maxSt=streak; } else streak=0; stScoreEl.innerText=streak; maxStreakEl.innerText=maxSt; nextStreak(); }; stOpts.appendChild(b); });
+}
+</script>
+</body>
+</html>
